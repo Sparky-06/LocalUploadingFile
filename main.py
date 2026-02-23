@@ -1,4 +1,5 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from typing import Optional
 import shutil
 import uuid
 import os
@@ -12,8 +13,6 @@ ALLOWED_TYPES = ["image/jpg", "image/jpeg", "image/png", "application/pdf",
     
 
 MAX_SIZE  = 10*1024*1024  #10MB
-
-
 
 
 
@@ -87,11 +86,86 @@ app.mount("/files", StaticFiles(directory="uploads"), name="files")
 
 
 @app.get("/files")
-async def files():
+async def files(
+    file_type:Optional[str] = None,
+    minSize:Optional[int] = None,
+    maxSize:Optional[int] = None,
+    sortBy : str = "upload_time",
+    order: str = "desc",
+    page : int = Query(1,ge=1),
+    limit: int = Query(10, ge=1)
+):
+    
+    
+    if not os.path.exists("metadata.json"):
+        return {"data" : []}
+    
     with open("metadata.json", "r") as fp:
-        return json.load(fp)
+        data = json.load(fp)
+    
+    files = data
+
+    if file_type:
+        file_type = file_type.lower()
+
+        if file_type == "image":
+            allowed = ["image/jpeg", "image/png", "image/jpg"]
+            files = [f for f in files if f["type"] in allowed]
+
+        elif file_type == "pdf":
+            allowed = ["application/pdf"]
+            files = [f for f in files if f["type"] in allowed]
+        
+
+        elif file_type == "txt":
+            allowed = ["text/plain"]
+            files = [f for f in files if f["type"] in allowed]
+
+        
+        elif file_type == "ppt":
+            allowed = ["application/vnd.openxmlformats-officedocument.presentationml.presentation"]
+            files = [f for f in files if f["type"] in allowed]
+        
+        else:
+            files = [ f for f in files if file_type in f["type"].lower()]
+    
 
 
+
+    if minSize is not None:
+        files = [f for f in files if f["size"] >= minSize]
+    if maxSize is not None:
+        files = [f for f in files if f["size"] <= maxSize]
+
+
+    allowed_sort = ["upload_time", "size", "name"]
+
+    if sortBy not in allowed_sort:
+        sortBy = "upload_time"
+    
+    reverse = order.lower() == "desc"
+
+    files.sort(key=lambda x:x[sortBy], reverse=reverse)
+
+
+
+
+    total_records = len(files)
+
+    total_pages = (total_records + limit - 1) // limit
+
+    start = (page - 1) * limit
+    end = start + limit
+
+    paginated_files = files[start:end]
+
+    return {
+        "page" : page,
+        "limit" : limit,
+        "total_records" : total_records,
+        "total_pages" : total_pages,
+        "data" : paginated_files
+    }
 
 
 
