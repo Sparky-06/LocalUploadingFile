@@ -127,7 +127,7 @@ Upload one file with validation.
 
 **POST** `/upload-multiple`
 
-Upload multiple files at once.
+Upload multiple files at once. (Another way of uploading - Not connected with  metadata yet.)
 
 ---
 
